@@ -32,8 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['single_register'])) {
         try {
             // 1. Create Student Identity
             $reg_number = generateRegNumber($pdo);
-            $stmt = $pdo->prepare("INSERT INTO students (reg_number, full_name, section, current_class, current_stream) VALUES (?, ?, ?, '', '')");
-            $stmt->execute([$reg_number, $full_name, $section]);
+            $gender = $_POST['gender'];
+            $stmt = $pdo->prepare("INSERT INTO students (reg_number, full_name, gender, section, current_class, current_stream) VALUES (?, ?, ?, ?, '', '')");
+            $stmt->execute([$reg_number, $full_name, $gender, $section]);
             $student_id = $pdo->lastInsertId();
             
             // 2. Enroll Student
@@ -69,8 +70,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_register'])) {
                         $name = trim($data[0]);
                         if ($name) {
                             $reg = generateRegNumber($pdo);
-                            $stmt = $pdo->prepare("INSERT INTO students (reg_number, full_name, section, current_class, current_stream) VALUES (?, ?, ?, '', '')");
-                            $stmt->execute([$reg, $name, $target_section]);
+                            $gender = isset($data[1]) && in_array(ucfirst(trim($data[1])), ['Male', 'Female']) ? ucfirst(trim($data[1])) : 'Male';
+                            $stmt = $pdo->prepare("INSERT INTO students (reg_number, full_name, gender, section, current_class, current_stream) VALUES (?, ?, ?, ?, '', '')");
+                            $stmt->execute([$reg, $name, $gender, $target_section]);
                             $student_id = $pdo->lastInsertId();
                             
                             enrollStudent($pdo, $student_id, $target_class_id, $target_stream, $target_year_id, $target_section);
@@ -140,6 +142,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_register'])) {
                     <div class="form-group">
                         <label>Full Name</label>
                         <input type="text" name="full_name" required placeholder="Enter student's full name">
+                    </div>
+                    <div class="form-group">
+                        <label>Gender</label>
+                        <select name="gender" required>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>Section</label>

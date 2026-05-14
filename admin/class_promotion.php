@@ -26,6 +26,13 @@ $students = $stmt->fetchAll();
 $academicYears = getAllAcademicYears($pdo);
 $classes = getClasses($pdo);
 
+$source_class_name = 'N/A';
+$source_section = 'N/A';
+if (!empty($students)) {
+    $source_class_name = $students[0]['class_name'];
+    $source_section = $students[0]['section'];
+}
+
 $message = '';
 $error = '';
 
@@ -95,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['promote_selected'])) 
     <main class="container">
         <div style="margin-bottom: 2rem;">
             <a href="manage_classes.php" style="color: var(--text-muted); text-decoration: none;">&larr; Back to Classes</a>
-            <h2 class="mt-4">Promoting Students from: <?php echo "$class_name $stream ($section)"; ?></h2>
+            <h2 class="mt-4" style="font-weight: 800; letter-spacing: -1px;">Promoting Students from: <span style="color: var(--primary-color);"><?php echo "$source_class_name $stream ($source_section)"; ?></span></h2>
         </div>
 
         <?php if ($message): ?><div style="color: var(--success); margin-bottom: 1.5rem; padding: 1rem; background: #dcfce7; border-radius: 8px;"><?php echo $message; ?></div><?php endif; ?>

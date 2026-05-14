@@ -146,11 +146,12 @@ $academicYears = getAllAcademicYears($pdo);
                             <tr><th>Year</th><th>Term</th><th>Amount</th><th>Actions</th></tr>
                         </thead>
                         <tbody>
-                                    <tr>
-                                        <td><?php echo htmlspecialchars($p['year_name']); ?></td>
-                                        <td>Term <?php echo $p['term']; ?></td>
-                                        <td><strong><?php echo number_format($p['amount_paid']); ?></strong></td>
-                                    <td>
+                            <?php foreach ($payments as $p): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($p['year_name']); ?></td>
+                                    <td style="text-align: center;">Term <?php echo $p['term']; ?></td>
+                                    <td style="text-align: right;"><strong><?php echo number_format($p['amount_paid']); ?></strong></td>
+                                    <td style="text-align: right;">
                                         <a href="edit_payment.php?id=<?php echo $p['id']; ?>&student_id=<?php echo $id; ?>" style="color: var(--primary-color); text-decoration: none; font-size: 0.85rem; margin-right: 0.5rem;">Edit</a>
                                         <a href="delete_payment.php?id=<?php echo $p['id']; ?>&student_id=<?php echo $id; ?>" style="color: var(--danger); text-decoration: none; font-size: 0.85rem;" onclick="return confirm('Delete this record?')">Delete</a>
                                     </td>

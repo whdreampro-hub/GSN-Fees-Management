@@ -78,56 +78,23 @@ function enrollStudent($pdo, $student_id, $class_id, $stream, $academic_year_id,
     return $stmt->execute([$student_id, $class_id, $stream, $academic_year_id, $section]);
 }
 
-function getFeeAmount($pdo, $section, $term) {
-    $stmt = $pdo->prepare("SELECT amount FROM fees_structure WHERE section = ? AND term = ?");
-    $stmt->execute([$section, $term]);
+function getFeeAmount($pdo, $section, $term, $academic_year_id) {
+    $stmt = $pdo->prepare("SELECT amount FROM fees_structure WHERE section = ? AND term = ? AND academic_year_id = ?");
+    $stmt->execute([$section, $term, $academic_year_id]);
     return $stmt->fetchColumn() ?: 0;
 }
 
-/**
- * Cumulative Status Logic:
- * Checks if the total paid for the year covers the cumulative required fees up to a specific term.
- */
-function getStudentPaymentStatus($pdo, $student_id, $year, $term) {
-    $sectionStmt = $pdo->prepare("SELECT section FROM students WHERE id = ?");
-    $sectionStmt->execute([$student_id]);
-    $section = $sectionStmt->fetchColumn();
-    
-    // Calculate cumulative required fees for the year up to the requested term
-    $cumulativeRequired = 0;
-    for ($i = 1; $i <= $term; $i++) {
-        $cumulativeRequired += getFeeAmount($pdo, $section, $i);
-    }
-
-    $requiredForThisTerm = getFeeAmount($pdo, $section, $term);
-    $requiredUpToPrevious = $cumulativeRequired - $requiredForThisTerm;
-    
-    // Total paid for the whole year
-    $stmt = $pdo->prepare("SELECT SUM(amount_paid) FROM payments WHERE student_id = ? AND year = ?");
-    $stmt->execute([$student_id, $year]);
-    $totalPaid = $stmt->fetchColumn() ?: 0;
-    
-    if ($totalPaid >= $cumulativeRequired) {
-        return 'Paid';
-    } elseif ($totalPaid > $requiredUpToPrevious) {
-        return 'Partial';
-    } else {
-        return 'Unpaid';
-    }
-}
 
 function getDetailedYearlyStatus($pdo, $student_id, $academic_year_id) {
     $enrollment = getEnrollment($pdo, $student_id, $academic_year_id);
-    if (!$enrollment) return ['total_required' => 0, 'total_paid' => 0, 'balance' => 0];
+    if (!$enrollment) return ['total_required' => 0, 'total_paid' => 0, 'balance' => 0, 'enrollment' => null];
 
     $section = $enrollment['section'];
     
-    $totalRequired = 0;
-    for ($i = 1; $i <= 3; $i++) {
-        $stmt = $pdo->prepare("SELECT amount FROM fees_structure WHERE section = ? AND term = ? AND academic_year_id = ?");
-        $stmt->execute([$section, $i, $academic_year_id]);
-        $totalRequired += $stmt->fetchColumn() ?: 0;
-    }
+    // Fetch all 3 terms fees in one go
+    $stmt = $pdo->prepare("SELECT SUM(amount) FROM fees_structure WHERE section = ? AND academic_year_id = ?");
+    $stmt->execute([$section, $academic_year_id]);
+    $totalRequired = $stmt->fetchColumn() ?: 0;
     
     $stmt = $pdo->prepare("SELECT SUM(amount_paid) FROM payments WHERE student_id = ? AND academic_year_id = ?");
     $stmt->execute([$student_id, $academic_year_id]);
