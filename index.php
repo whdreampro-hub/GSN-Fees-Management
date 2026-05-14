@@ -2,97 +2,115 @@
 require_once 'includes/db_connect.php';
 require_once 'includes/functions.php';
 
-$current_system_year = getCurrentYear($pdo);
-$search_reg = isset($_POST['reg_number']) ? trim($_POST['reg_number']) : '';
-$search_year = isset($_POST['year']) && !empty($_POST['year']) ? trim($_POST['year']) : $current_system_year;
-
-$student = null;
-$status = null;
-$error = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $search_reg) {
-    $stmt = $pdo->prepare("SELECT * FROM students WHERE reg_number = ?");
-    $stmt->execute([$search_reg]);
-    $student = $stmt->fetch();
-
-    if ($student) {
-        $status = getDetailedYearlyStatus($pdo, $student['id'], $search_year);
-    } else {
-        $error = "No student found with Registration Number: $search_reg";
-    }
-}
+$current_year = getCurrentYear($pdo);
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student Portal - GSN Fees Management</title>
+    <title>GS Nyagisozi - Fees Management System</title>
     <link rel="stylesheet" href="css/style.css">
     <style>
-        .portal-card { max-width: 600px; margin: 4rem auto; }
-        .result-card { background: white; padding: 2rem; border-radius: 12px; margin-top: 2rem; box-shadow: var(--shadow-lg); }
-        .status-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; }
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .landing-container {
+            max-width: 1000px;
+            width: 90%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            animation: fadeIn 0.8s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .hub-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 3rem;
+            border-radius: 32px;
+            text-align: center;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            color: white;
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .hub-card:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: scale(1.02);
+            border-color: var(--accent-color);
+            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.5);
+        }
+        .hub-icon {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+            display: block;
+        }
+        .hub-card h2 {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            letter-spacing: -1px;
+        }
+        .hub-card p {
+            color: #94a3b8;
+            font-size: 1rem;
+            line-height: 1.6;
+        }
+        .system-badge {
+            position: absolute;
+            top: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.5rem 1.5rem;
+            border-radius: 99px;
+            color: #94a3b8;
+            font-weight: 600;
+            font-size: 0.85rem;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        @media (max-width: 768px) {
+            .landing-container { grid-template-columns: 1fr; }
+            body { overflow-y: auto; padding: 4rem 0; }
+        }
     </style>
 </head>
-<body style="background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%); min-height: 100vh;">
-    <div class="container">
-        <div class="card portal-card">
-            <h1 class="text-center mb-4" style="color: var(--secondary-color);">Student Portal</h1>
-            <p class="text-center mb-4" style="color: var(--text-muted);">Enter your details to check your payment status.</p>
-            
-            <?php if ($error): ?><div style="color: var(--danger); margin-bottom: 1rem; text-align: center;"><?php echo $error; ?></div><?php endif; ?>
+<body>
+    <div class="system-badge">
+        GS Nyagisozi Finance Hub • <?php echo $current_year; ?>
+    </div>
 
-            <form method="POST">
-                <div class="form-group">
-                    <label>Registration Number</label>
-                    <input type="text" name="reg_number" value="<?php echo htmlspecialchars($search_reg); ?>" placeholder="e.g. GSN-2026-00000001" required>
-                </div>
-                <div class="form-group">
-                    <label>Academic Year Range</label>
-                    <input type="text" name="year" value="<?php echo htmlspecialchars($search_year); ?>" placeholder="e.g. 2025-2026">
-                </div>
-                <button type="submit" class="btn btn-primary mt-2">Check My Status</button>
-            </form>
+    <div class="landing-container">
+        <!-- Student Portal -->
+        <a href="portal.php" class="hub-card">
+            <span class="hub-icon">🎓</span>
+            <h2>Student Portal</h2>
+            <p>Access your academic financial journey, check balances, and submit assistance requests directly to administration.</p>
+        </a>
 
-            <div style="text-align: center; margin-top: 1.5rem;">
-                <a href="login.php" style="color: var(--primary-color); text-decoration: none; font-size: 0.9rem;">Admin Login</a>
-            </div>
-        </div>
+        <!-- Admin Portal -->
+        <a href="login.php" class="hub-card" style="border-color: rgba(79, 70, 229, 0.2);">
+            <span class="hub-icon">💼</span>
+            <h2>Administrator</h2>
+            <p>Secure workspace for financial management, class enrollments, fee collection tracking, and professional reporting.</p>
+        </a>
+    </div>
 
-        <?php if ($student && $status): ?>
-            <div class="result-card portal-card">
-                <div class="status-header">
-                    <div>
-                        <h2><?php echo htmlspecialchars($student['full_name']); ?></h2>
-                        <p style="color: var(--text-muted);">Year: <?php echo htmlspecialchars($search_year); ?></p>
-                    </div>
-                    <div style="text-align: right;">
-                        <span class="status-badge <?php echo $status['balance'] >= 0 ? 'status-paid' : 'status-unpaid'; ?>">
-                            <?php echo $status['balance'] >= 0 ? 'FULLY PAID' : 'DEBT RECORDED'; ?>
-                        </span>
-                    </div>
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem;">
-                    <div style="padding: 1rem; background: #f8fafc; border-radius: 8px;">
-                        <p style="font-size: 0.8rem; color: var(--text-muted);">Total Paid</p>
-                        <p style="font-size: 1.25rem; font-weight: 700; color: var(--success);"><?php echo number_format($status['total_paid']); ?> FRW</p>
-                    </div>
-                    <div style="padding: 1rem; background: #f8fafc; border-radius: 8px;">
-                        <p style="font-size: 0.8rem; color: var(--text-muted);"><?php echo $status['balance'] >= 0 ? 'Credit/Overpaid' : 'Balance Due'; ?></p>
-                        <p style="font-size: 1.25rem; font-weight: 700; color: <?php echo $status['balance'] >= 0 ? 'var(--accent-color)' : 'var(--danger)'; ?>;">
-                            <?php echo number_format(abs($status['balance'])); ?> FRW
-                        </p>
-                    </div>
-                </div>
-
-                <div style="text-align: center;">
-                    <p style="font-size: 0.9rem; color: var(--text-muted);">Current Class: <?php echo $student['current_class'] . ' ' . $student['current_stream']; ?></p>
-                    <button onclick="window.print()" class="btn btn-secondary mt-4" style="width: auto;">Print My Status Slip</button>
-                </div>
-            </div>
-        <?php endif; ?>
+    <div style="position: absolute; bottom: 2rem; color: #475569; font-size: 0.8rem; font-weight: 500;">
+        Built for Professional Academic Financial Management
     </div>
 </body>
 </html>

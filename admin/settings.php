@@ -10,34 +10,60 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['update_fees'])) {
-        $primary_fee = $_POST['primary_fee'];
-        $secondary_fee = $_POST['secondary_fee'];
+    // 1. ADD NEW ACADEMIC YEAR
+    if (isset($_POST['add_year'])) {
+        $year_name = trim($_POST['year_name']);
         try {
-            $pdo->beginTransaction();
-            $stmt = $pdo->prepare("UPDATE fees_structure SET amount = ? WHERE section = 'Primary'");
-            $stmt->execute([$primary_fee]);
-            $stmt = $pdo->prepare("UPDATE fees_structure SET amount = ? WHERE section = 'Secondary'");
-            $stmt->execute([$secondary_fee]);
-            $pdo->commit();
-            $message = "Fee structure updated successfully!";
-        } catch (PDOException $e) { $pdo->rollBack(); $error = "Error: " . $e->getMessage(); }
+            $stmt = $pdo->prepare("INSERT INTO academic_years (year_name) VALUES (?)");
+            $stmt->execute([$year_name]);
+            $message = "New academic year '$year_name' added successfully!";
+        } catch (PDOException $e) { $error = "Error adding year: " . $e->getMessage(); }
     }
     
-    if (isset($_POST['update_year'])) {
-        $new_year = trim($_POST['current_year']);
+    // 2. SET CURRENT ACADEMIC YEAR
+    if (isset($_POST['set_current_year'])) {
+        $year_id = (int)$_POST['year_id'];
         try {
+            $pdo->beginTransaction();
+            $pdo->exec("UPDATE academic_years SET is_current = 0");
+            $stmt = $pdo->prepare("UPDATE academic_years SET is_current = 1 WHERE id = ?");
+            $stmt->execute([$year_id]);
+            
+            // Also update the old system_settings for backward compatibility if any
+            $year_name = $pdo->query("SELECT year_name FROM academic_years WHERE id = $year_id")->fetchColumn();
             $stmt = $pdo->prepare("UPDATE system_settings SET setting_value = ? WHERE setting_key = 'current_year'");
-            $stmt->execute([$new_year]);
-            $message = "Academic Year updated to $new_year!";
-        } catch (PDOException $e) { $error = "Error: " . $e->getMessage(); }
+            $stmt->execute([$year_name]);
+            
+            $pdo->commit();
+            $message = "Current workspace switched to '$year_name'!";
+        } catch (PDOException $e) { $pdo->rollBack(); $error = "Error: " . $e->getMessage(); }
+    }
+
+    // 3. UPDATE FEES FOR SELECTED YEAR
+    if (isset($_POST['update_fees'])) {
+        $year_id = (int)$_POST['year_id'];
+        $p_fee = $_POST['primary_fee'];
+        $s_fee = $_POST['secondary_fee'];
+        
+        try {
+            $pdo->beginTransaction();
+            foreach (['Primary' => $p_fee, 'Secondary' => $s_fee] as $section => $amount) {
+                for ($term = 1; $term <= 3; $term++) {
+                    $stmt = $pdo->prepare("INSERT INTO fees_structure (section, term, academic_year_id, amount) 
+                                          VALUES (?, ?, ?, ?) 
+                                          ON DUPLICATE KEY UPDATE amount = VALUES(amount)");
+                    $stmt->execute([$section, $term, $year_id, $amount]);
+                }
+            }
+            $pdo->commit();
+            $message = "Fee structure updated for the selected year!";
+        } catch (PDOException $e) { $pdo->rollBack(); $error = "Error: " . $e->getMessage(); }
     }
 }
 
-// Fetch current fees and year
-$p_fee = getFeeAmount($pdo, 'Primary', 1);
-$s_fee = getFeeAmount($pdo, 'Secondary', 1);
-$current_year = getCurrentYear($pdo);
+$academicYears = getAllAcademicYears($pdo);
+$currentYear = getCurrentYearData($pdo);
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -61,40 +87,78 @@ $current_year = getCurrentYear($pdo);
     </header>
 
     <main class="container">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
-            <!-- Year Settings -->
-            <div class="card">
-                <h2 class="mb-4">System Academic Year</h2>
-                <p class="mb-4" style="color: var(--text-muted);">Enter the year range (e.g., 2025-2026).</p>
-                <form method="POST">
-                    <div class="form-group">
-                        <label>Current Academic Year Range</label>
-                        <input type="text" name="current_year" value="<?php echo htmlspecialchars($current_year); ?>" placeholder="e.g. 2025-2026" required>
+        <h2 class="mb-4">Global System Configuration</h2>
+
+        <?php if ($message): ?><div style="background: #dcfce7; color: #166534; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-weight: 600;"><?php echo $message; ?></div><?php endif; ?>
+        <?php if ($error): ?><div style="background: #fee2e2; color: #991b1b; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-weight: 600;"><?php echo $error; ?></div><?php endif; ?>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start;">
+            <!-- Year Management -->
+            <div class="card" style="max-width: 100%;">
+                <h3 class="mb-4">Academic Workspaces</h3>
+                
+                <form method="POST" style="margin-bottom: 2rem; background: #f8fafc; padding: 1rem; border-radius: 12px; border: 1px solid var(--border-color);">
+                    <label>Add New Academic Year</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" name="year_name" placeholder="e.g. 2026-2027" required style="background: white;">
+                        <button type="submit" name="add_year" class="btn btn-primary" style="width: auto;">Add</button>
                     </div>
-                    <button type="submit" name="update_year" class="btn btn-primary mt-4">Update School Year</button>
+                </form>
+
+                <label>Active Workspace (Operational Year)</label>
+                <form method="POST">
+                    <select name="year_id" style="background: white; margin-bottom: 1rem;">
+                        <?php foreach ($academicYears as $ay): ?>
+                            <option value="<?php echo $ay['id']; ?>" <?php echo $ay['is_current'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($ay['year_name']); ?> <?php echo $ay['is_current'] ? '(CURRENT)' : ''; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="submit" name="set_current_year" class="btn btn-secondary" style="width: 100%;">Set as Global Active Year</button>
                 </form>
             </div>
 
-            <!-- Fee Settings -->
-            <div class="card">
-                <h2 class="mb-4">Fee Structure Settings</h2>
-                <p class="mb-4" style="color: var(--text-muted);">Default termly fees for Primary and Secondary sections.</p>
+            <!-- Fee Configuration -->
+            <div class="card" style="max-width: 100%;">
+                <h3 class="mb-4">Financial Structure</h3>
+                <p class="mb-4" style="font-size: 0.85rem; color: var(--text-muted);">Configure default term fees for a specific year.</p>
+                
                 <form method="POST">
                     <div class="form-group">
-                        <label>Primary Section Fee (per term)</label>
-                        <input type="number" name="primary_fee" value="<?php echo (int)$p_fee; ?>" required>
+                        <label>Target Academic Year</label>
+                        <select name="year_id" required style="background: white;">
+                            <?php foreach ($academicYears as $ay): ?>
+                                <option value="<?php echo $ay['id']; ?>" <?php echo $ay['is_current'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($ay['year_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
-                    <div class="form-group">
-                        <label>Secondary Section Fee (per term)</label>
-                        <input type="number" name="secondary_fee" value="<?php echo (int)$s_fee; ?>" required>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <?php
+                        // Fetch sample fees for the current year to pre-fill
+                        $stmt = $pdo->prepare("SELECT amount FROM fees_structure WHERE section = 'Primary' AND academic_year_id = ? LIMIT 1");
+                        $stmt->execute([$currentYear['id']]);
+                        $sample_p = $stmt->fetchColumn() ?: 0;
+                        
+                        $stmt = $pdo->prepare("SELECT amount FROM fees_structure WHERE section = 'Secondary' AND academic_year_id = ? LIMIT 1");
+                        $stmt->execute([$currentYear['id']]);
+                        $sample_s = $stmt->fetchColumn() ?: 0;
+                        ?>
+                        <div class="form-group">
+                            <label>Primary Fee / Term</label>
+                            <input type="number" name="primary_fee" value="<?php echo (int)$sample_p; ?>" required style="background: white;">
+                        </div>
+                        <div class="form-group">
+                            <label>Secondary Fee / Term</label>
+                            <input type="number" name="secondary_fee" value="<?php echo (int)$sample_s; ?>" required style="background: white;">
+                        </div>
                     </div>
-                    <button type="submit" name="update_fees" class="btn btn-primary mt-4">Update Fee Amounts</button>
+                    <button type="submit" name="update_fees" class="btn btn-primary mt-4">Save Fee Structure</button>
                 </form>
             </div>
         </div>
-
-        <?php if ($message): ?><div style="color: var(--success); text-align: center; margin-top: 2rem; font-weight: 600;"><?php echo $message; ?></div><?php endif; ?>
-        <?php if ($error): ?><div style="color: var(--danger); text-align: center; margin-top: 2rem; font-weight: 600;"><?php echo $error; ?></div><?php endif; ?>
     </main>
 </body>
 </html>

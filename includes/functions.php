@@ -1,10 +1,38 @@
 <?php
 session_start();
 
-function getCurrentYear($pdo) {
-    $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'current_year'");
+function getCurrentYearData($pdo) {
+    $stmt = $pdo->prepare("SELECT * FROM academic_years WHERE is_current = 1");
     $stmt->execute();
-    return $stmt->fetchColumn() ?: date('Y');
+    return $stmt->fetch() ?: ['id' => 0, 'year_name' => date('Y')];
+}
+
+function getCurrentYear($pdo) {
+    $data = getCurrentYearData($pdo);
+    return $data['year_name'];
+}
+
+function getAcademicYearById($pdo, $id) {
+    $stmt = $pdo->prepare("SELECT * FROM academic_years WHERE id = ?");
+    $stmt->execute([$id]);
+    return $stmt->fetch();
+}
+
+function getAllAcademicYears($pdo) {
+    $stmt = $pdo->query("SELECT * FROM academic_years ORDER BY year_name DESC");
+    return $stmt->fetchAll();
+}
+
+function getClasses($pdo, $section = null) {
+    $query = "SELECT * FROM classes";
+    if ($section) {
+        $query .= " WHERE section = ?";
+        $stmt = $pdo->prepare($query);
+        $stmt->execute([$section]);
+    } else {
+        $stmt = $pdo->query($query);
+    }
+    return $stmt->fetchAll();
 }
 
 function isLoggedIn() {
@@ -17,7 +45,7 @@ function redirect($url) {
 }
 
 function generateRegNumber($pdo) {
-    $year = date('2026'); // As requested, GSN-2026
+    $year = date('Y');
     $stmt = $pdo->query("SELECT reg_number FROM students ORDER BY id DESC LIMIT 1");
     $lastReg = $stmt->fetchColumn();
     
@@ -25,11 +53,29 @@ function generateRegNumber($pdo) {
         $nextNum = 1;
     } else {
         $parts = explode('-', $lastReg);
-        $lastNum = (int)$parts[2];
-        $nextNum = $lastNum + 1;
+        if (count($parts) >= 3) {
+            $lastNum = (int)$parts[2];
+            $nextNum = $lastNum + 1;
+        } else {
+            $nextNum = 1;
+        }
     }
     
-    return "GSN-$year-" . str_pad($nextNum, 12, '0', STR_PAD_LEFT);
+    return "GSN-$year-" . str_pad($nextNum, 8, '0', STR_PAD_LEFT);
+}
+
+function getEnrollment($pdo, $student_id, $academic_year_id) {
+    $stmt = $pdo->prepare("SELECT e.*, c.class_name FROM enrollments e 
+                          JOIN classes c ON e.class_id = c.id 
+                          WHERE e.student_id = ? AND e.academic_year_id = ?");
+    $stmt->execute([$student_id, $academic_year_id]);
+    return $stmt->fetch();
+}
+
+function enrollStudent($pdo, $student_id, $class_id, $stream, $academic_year_id, $section) {
+    $stmt = $pdo->prepare("INSERT INTO enrollments (student_id, class_id, stream, academic_year_id, section) 
+                          VALUES (?, ?, ?, ?, ?)");
+    return $stmt->execute([$student_id, $class_id, $stream, $academic_year_id, $section]);
 }
 
 function getFeeAmount($pdo, $section, $term) {
@@ -70,18 +116,21 @@ function getStudentPaymentStatus($pdo, $student_id, $year, $term) {
     }
 }
 
-function getDetailedYearlyStatus($pdo, $student_id, $year) {
-    $sectionStmt = $pdo->prepare("SELECT section FROM students WHERE id = ?");
-    $sectionStmt->execute([$student_id]);
-    $section = $sectionStmt->fetchColumn();
+function getDetailedYearlyStatus($pdo, $student_id, $academic_year_id) {
+    $enrollment = getEnrollment($pdo, $student_id, $academic_year_id);
+    if (!$enrollment) return ['total_required' => 0, 'total_paid' => 0, 'balance' => 0];
+
+    $section = $enrollment['section'];
     
     $totalRequired = 0;
     for ($i = 1; $i <= 3; $i++) {
-        $totalRequired += getFeeAmount($pdo, $section, $i);
+        $stmt = $pdo->prepare("SELECT amount FROM fees_structure WHERE section = ? AND term = ? AND academic_year_id = ?");
+        $stmt->execute([$section, $i, $academic_year_id]);
+        $totalRequired += $stmt->fetchColumn() ?: 0;
     }
     
-    $stmt = $pdo->prepare("SELECT SUM(amount_paid) FROM payments WHERE student_id = ? AND year = ?");
-    $stmt->execute([$student_id, $year]);
+    $stmt = $pdo->prepare("SELECT SUM(amount_paid) FROM payments WHERE student_id = ? AND academic_year_id = ?");
+    $stmt->execute([$student_id, $academic_year_id]);
     $totalPaid = $stmt->fetchColumn() ?: 0;
     
     $balance = $totalPaid - $totalRequired;
@@ -89,7 +138,8 @@ function getDetailedYearlyStatus($pdo, $student_id, $year) {
     return [
         'total_required' => $totalRequired,
         'total_paid' => $totalPaid,
-        'balance' => $balance
+        'balance' => $balance,
+        'enrollment' => $enrollment
     ];
 }
 ?>

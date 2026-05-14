@@ -6,54 +6,69 @@ if (!isLoggedIn()) {
     redirect('../login.php');
 }
 
-$section = isset($_GET['section']) ? $_GET['section'] : '';
-$class_name = isset($_GET['class']) ? $_GET['class'] : '';
+$class_id = isset($_GET['class_id']) ? (int)$_GET['class_id'] : 0;
 $stream = isset($_GET['stream']) ? $_GET['stream'] : '';
+$source_year_id = isset($_GET['year_id']) ? (int)$_GET['year_id'] : 0;
 
-if (!$class_name) {
+if (!$class_id || !$source_year_id) {
     redirect('manage_classes.php');
 }
 
-$stmt = $pdo->prepare("SELECT * FROM students WHERE section = ? AND current_class = ? AND current_stream = ? ORDER BY full_name ASC");
-$stmt->execute([$section, $class_name, $stream]);
+$stmt = $pdo->prepare("SELECT s.*, e.section, e.class_id, e.stream, c.class_name 
+                      FROM students s 
+                      JOIN enrollments e ON s.id = e.student_id 
+                      JOIN classes c ON e.class_id = c.id
+                      WHERE e.class_id = ? AND e.stream = ? AND e.academic_year_id = ? 
+                      ORDER BY s.full_name ASC");
+$stmt->execute([$class_id, $stream, $source_year_id]);
 $students = $stmt->fetchAll();
+
+$academicYears = getAllAcademicYears($pdo);
+$classes = getClasses($pdo);
 
 $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['promote_selected'])) {
     $selected_students = isset($_POST['student_ids']) ? $_POST['student_ids'] : [];
+    $target_year_id = (int)$_POST['target_year_id'];
     $target_section = $_POST['target_section'];
-    $target_class = $_POST['target_class'];
-    $target_stream = $_POST['target_stream'];
+    $target_class_id = (int)$_POST['target_class_id'];
+    $target_stream = trim($_POST['target_stream']);
     
-    if (!empty($selected_students) && $target_class) {
+    if (!empty($selected_students) && $target_class_id && $target_year_id) {
         try {
             $pdo->beginTransaction();
             
             foreach ($selected_students as $student_id) {
-                // Log history for each student
-                $hist = $pdo->prepare("INSERT INTO academic_history (student_id, old_section, old_class, old_stream, new_section, new_class, new_stream) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $hist->execute([$student_id, $section, $class_name, $stream, $target_section, $target_class, $target_stream]);
-                
-                // Update current status
-                $stmt = $pdo->prepare("UPDATE students SET section = ?, current_class = ?, current_stream = ? WHERE id = ?");
-                $stmt->execute([$target_section, $target_class, $target_stream, $student_id]);
+                // 1. Update old enrollment status if it was 'Active'
+                $stmt = $pdo->prepare("UPDATE enrollments SET status = 'Promoted' WHERE student_id = ? AND academic_year_id = ? AND status = 'Active'");
+                $stmt->execute([$student_id, $source_year_id]);
+
+                // 2. Create NEW enrollment for target year
+                $stmt = $pdo->prepare("INSERT INTO enrollments (student_id, class_id, stream, academic_year_id, section, status) 
+                                      VALUES (?, ?, ?, ?, ?, 'Active')");
+                $stmt->execute([$student_id, $target_class_id, $target_stream, $target_year_id, $target_section]);
             }
             
             $pdo->commit();
-            $message = "Successfully promoted " . count($selected_students) . " students. History recorded.";
+            $message = "Successfully promoted " . count($selected_students) . " students to the selected workspace.";
             
             // Refresh list
-            $stmt = $pdo->prepare("SELECT * FROM students WHERE section = ? AND current_class = ? AND current_stream = ? ORDER BY full_name ASC");
-            $stmt->execute([$section, $class_name, $stream]);
+            $stmt = $pdo->prepare("SELECT s.*, e.section, e.class_id, e.stream, c.class_name 
+                                  FROM students s 
+                                  JOIN enrollments e ON s.id = e.student_id 
+                                  JOIN classes c ON e.class_id = c.id
+                                  WHERE e.class_id = ? AND e.stream = ? AND e.academic_year_id = ? 
+                                  ORDER BY s.full_name ASC");
+            $stmt->execute([$class_id, $stream, $source_year_id]);
             $students = $stmt->fetchAll();
         } catch (PDOException $e) {
             $pdo->rollBack();
             $error = "Error: " . $e->getMessage();
         }
     } else {
-        $error = "Please select students and a target class.";
+        $error = "Please select students and a target class/year.";
     }
 }
 ?>
@@ -89,17 +104,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['promote_selected'])) 
         <form method="POST">
             <div style="background: #eff6ff; padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; border: 1px solid #bfdbfe;">
                 <h3 class="mb-4">Target Information</h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
                     <div class="form-group">
-                        <label>Target Section</label>
-                        <select name="target_section" required>
-                            <option value="Primary" <?php echo $section == 'Primary' ? 'selected' : ''; ?>>Primary</option>
-                            <option value="Secondary" <?php echo $section == 'Secondary' ? 'selected' : ''; ?>>Secondary</option>
+                        <label>Target Year</label>
+                        <select name="target_year_id" required>
+                            <?php foreach ($academicYears as $ay): ?>
+                                <option value="<?php echo $ay['id']; ?>">
+                                    <?php echo htmlspecialchars($ay['year_name']); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Target Class (e.g. S4)</label>
-                        <input type="text" name="target_class" required>
+                        <label>Target Section</label>
+                        <select name="target_section" required>
+                            <option value="Primary">Primary</option>
+                            <option value="Secondary" selected>Secondary</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Target Class</label>
+                        <select name="target_class_id" required>
+                            <?php foreach ($classes as $c): ?>
+                                <option value="<?php echo $c['id']; ?>"><?php echo htmlspecialchars($c['class_name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>Target Stream</label>

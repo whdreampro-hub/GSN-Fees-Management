@@ -6,12 +6,19 @@ if (!isLoggedIn()) {
     redirect('../login.php');
 }
 
-// Fetch all classes with student counts
-$stmt = $pdo->query("SELECT section, current_class, current_stream, COUNT(*) as student_count 
-                    FROM students 
-                    GROUP BY section, current_class, current_stream 
-                    ORDER BY section, current_class, current_stream");
-$classes = $stmt->fetchAll();
+$years = getAllAcademicYears($pdo);
+$currentYearData = getCurrentYearData($pdo);
+$selectedYearId = isset($_GET['year_id']) ? (int)$_GET['year_id'] : $currentYearData['id'];
+
+// Fetch all classes that have enrollments in the selected year
+$stmt = $pdo->prepare("SELECT e.section, e.class_id, e.stream, c.class_name, COUNT(*) as student_count 
+                      FROM enrollments e 
+                      JOIN classes c ON e.class_id = c.id 
+                      WHERE e.academic_year_id = ? 
+                      GROUP BY e.section, e.class_id, e.stream 
+                      ORDER BY e.section, c.class_name, e.stream");
+$stmt->execute([$selectedYearId]);
+$activeClasses = $stmt->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -42,52 +49,69 @@ $classes = $stmt->fetchAll();
     </header>
 
     <main class="container">
+        <div class="year-selector" style="background: white; padding: 1rem; border-radius: 12px; display: flex; align-items: center; gap: 1rem; border: 1px solid var(--border-color); margin-bottom: 2rem;">
+            <span style="font-weight: 600; color: var(--text-muted);">Academic Year:</span>
+            <form method="GET" style="display: flex; gap: 0.5rem; align-items: center;">
+                <select name="year_id" onchange="this.form.submit()" style="padding: 0.5rem; border-radius: 8px; width: auto; margin-bottom: 0;">
+                    <?php foreach ($years as $y): ?>
+                        <option value="<?php echo $y['id']; ?>" <?php echo $y['id'] == $selectedYearId ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($y['year_name']); ?> <?php echo $y['is_current'] ? '(Active)' : ''; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </form>
+        </div>
+
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-            <h2>Professional Class Management</h2>
-            <a href="add_student.php" class="btn-header">+ Create New Class</a>
+            <h2>Class Workspaces</h2>
+            <a href="add_student.php" class="btn-header">+ Register New Student</a>
         </div>
 
         <div class="class-grid">
-            <?php foreach ($classes as $class): 
-                $year = getCurrentYear($pdo);
+            <?php foreach ($activeClasses as $class): 
+                // Calculate fees for this class in this year
                 $feePerStudent = 0;
-                for ($i=1; $i<=3; $i++) { $feePerStudent += getFeeAmount($pdo, $class['section'], $i); }
+                for ($i=1; $i<=3; $i++) { 
+                    $stmt = $pdo->prepare("SELECT amount FROM fees_structure WHERE section = ? AND term = ? AND academic_year_id = ?");
+                    $stmt->execute([$class['section'], $i, $selectedYearId]);
+                    $feePerStudent += $stmt->fetchColumn() ?: 0;
+                }
                 $totalClassRequired = $feePerStudent * $class['student_count'];
                 
                 $stmt = $pdo->prepare("SELECT SUM(p.amount_paid) FROM payments p 
-                                     JOIN students s ON p.student_id = s.id 
-                                     WHERE s.section = ? AND s.current_class = ? AND s.current_stream = ? AND p.year = ?");
-                $stmt->execute([$class['section'], $class['current_class'], $class['current_stream'], $year]);
+                                     JOIN enrollments e ON p.student_id = e.student_id 
+                                     WHERE e.class_id = ? AND e.stream = ? AND e.academic_year_id = ? AND p.academic_year_id = ?");
+                $stmt->execute([$class['class_id'], $class['stream'], $selectedYearId, $selectedYearId]);
                 $totalClassPaid = $stmt->fetchColumn() ?: 0;
                 $percent = $totalClassRequired > 0 ? round(($totalClassPaid / $totalClassRequired) * 100) : 0;
             ?>
                 <div class="dashboard-card">
                     <div style="display: flex; justify-content: space-between; align-items: start;">
                         <div>
-                            <h3 style="color: var(--primary-color); margin-bottom: 0.25rem;"><?php echo $class['current_class'] . ' ' . $class['current_stream']; ?></h3>
-                            <span class="status-badge" style="background: #e2e8f0; color: #475569; padding: 0.15rem 0.5rem;"><?php echo $class['section']; ?></span>
+                            <h3 style="color: var(--primary-color); margin-bottom: 0.25rem;"><?php echo $class['class_name'] . ' ' . $class['stream']; ?></h3>
+                            <span class="status-badge" style="background: #e2e8f0; color: #475569; padding: 0.15rem 0.5rem; font-size: 0.7rem;"><?php echo $class['section']; ?> Section</span>
                         </div>
                         <div style="text-align: right;">
-                            <span style="font-size: 1.25rem; font-weight: 700; color: var(--secondary-color);"><?php echo $class['student_count']; ?></span>
-                            <p style="font-size: 0.7rem; color: var(--text-muted);">Students</p>
+                            <span style="font-size: 1.5rem; font-weight: 700; color: var(--secondary-color);"><?php echo $class['student_count']; ?></span>
+                            <p style="font-size: 0.7rem; color: var(--text-muted);">Enrollments</p>
                         </div>
                     </div>
 
                     <div class="financials">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                            <span>Collection Rate:</span>
-                            <strong><?php echo $percent; ?>%</strong>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="font-weight: 500;">Collection Progress</span>
+                            <strong style="color: var(--success);"><?php echo $percent; ?>%</strong>
                         </div>
                         <div class="progress-bar"><div class="progress-fill" style="width: <?php echo $percent; ?>%;"></div></div>
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-                        <a href="add_student.php?mode=single&section=<?php echo urlencode($class['section']); ?>&class=<?php echo urlencode($class['current_class']); ?>&stream=<?php echo urlencode($class['current_stream']); ?>" class="btn btn-secondary mt-2" style="text-decoration: none; font-size: 0.75rem; padding: 0.5rem; background-color: var(--success);">+ Student</a>
-                        <a href="add_student.php?mode=bulk&section=<?php echo urlencode($class['section']); ?>&class=<?php echo urlencode($class['current_class']); ?>&stream=<?php echo urlencode($class['current_stream']); ?>" class="btn btn-secondary mt-2" style="text-decoration: none; font-size: 0.75rem; padding: 0.5rem; background-color: var(--accent-color);">Upload List</a>
+                        <a href="add_student.php?mode=single&section=<?php echo urlencode($class['section']); ?>&class_id=<?php echo $class['class_id']; ?>&stream=<?php echo urlencode($class['stream']); ?>" class="btn btn-secondary mt-2" style="text-decoration: none; font-size: 0.75rem; padding: 0.5rem; background-color: var(--primary-color);">+ Student</a>
+                        <a href="add_student.php?mode=bulk&section=<?php echo urlencode($class['section']); ?>&class_id=<?php echo $class['class_id']; ?>&stream=<?php echo urlencode($class['stream']); ?>" class="btn btn-secondary mt-2" style="text-decoration: none; font-size: 0.75rem; padding: 0.5rem; background-color: var(--accent-color);">Bulk Upload</a>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">
-                        <a href="class_promotion.php?section=<?php echo urlencode($class['section']); ?>&class=<?php echo urlencode($class['current_class']); ?>&stream=<?php echo urlencode($class['current_stream']); ?>" class="btn btn-primary" style="text-decoration: none; font-size: 0.75rem; padding: 0.5rem;">Promote</a>
-                        <a href="print_class.php?section=<?php echo urlencode($class['section']); ?>&class=<?php echo urlencode($class['current_class']); ?>&stream=<?php echo urlencode($class['current_stream']); ?>" class="btn btn-secondary" style="text-decoration: none; font-size: 0.75rem; padding: 0.5rem; background: var(--secondary-color);">Print Report</a>
+                        <a href="class_promotion.php?class_id=<?php echo $class['class_id']; ?>&stream=<?php echo urlencode($class['stream']); ?>&year_id=<?php echo $selectedYearId; ?>" class="btn btn-primary" style="text-decoration: none; font-size: 0.75rem; padding: 0.5rem;">Promote Class</a>
+                        <a href="print_class.php?class_id=<?php echo $class['class_id']; ?>&stream=<?php echo urlencode($class['stream']); ?>&year_id=<?php echo $selectedYearId; ?>" class="btn btn-secondary" style="text-decoration: none; font-size: 0.75rem; padding: 0.5rem; background: var(--secondary-color);">Class Report</a>
                     </div>
                 </div>
             <?php endforeach; ?>

@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <form method="POST">
                 <div class="form-group">
                     <label>Academic Year</label>
-                    <input type="number" name="year" value="<?php echo $payment['year']; ?>" required>
+                    <input type="text" name="year" value="<?php echo htmlspecialchars($payment['year']); ?>" required>
                 </div>
                 <div class="form-group">
                     <label>Term</label>
