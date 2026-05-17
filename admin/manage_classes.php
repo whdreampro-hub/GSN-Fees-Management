@@ -7,8 +7,8 @@ if (!isLoggedIn()) {
 }
 
 $years = getAllAcademicYears($pdo);
-$currentYearData = getCurrentYearData($pdo);
-$selectedYearId = isset($_GET['year_id']) ? (int)$_GET['year_id'] : $currentYearData['id'];
+$activeYear = getActiveYearData($pdo);
+$selectedYearId = $activeYear['id'];
 
 $message = '';
 $error = '';
@@ -67,6 +67,11 @@ if (isset($_GET['edit_id'])) {
         }
     }
 }
+
+// Check if any fees are set for this year
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM fees_structure WHERE academic_year_id = ?");
+$stmt->execute([$selectedYearId]);
+$hasFees = $stmt->fetchColumn() > 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -89,31 +94,39 @@ if (isset($_GET['edit_id'])) {
             <div class="logo">GSN <span>Fees Management</span></div>
             <nav class="nav-links">
                 <a href="dashboard.php">Dashboard</a>
-                <a href="manage_classes.php">Manage Classes</a>
-                <a href="add_student.php">Register Student</a>
+                <a href="manage_classes.php">Classes</a>
+                <a href="add_student.php">Register</a>
                 <a href="logout.php" style="color: var(--danger);">Logout</a>
             </nav>
+            <div class="year-selector" style="margin-left: 1rem;">
+                <form action="switch_year.php" method="POST">
+                    <select name="switch_year_id" onchange="this.form.submit()" style="padding: 0.3rem 0.5rem; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.85rem; font-weight: 700; color: var(--primary-color);">
+                        <?php foreach ($years as $y): ?>
+                            <option value="<?php echo $y['id']; ?>" <?php echo $y['id'] == $selectedYearId ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($y['year_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+            </div>
         </div>
     </header>
 
     <main class="container">
+        <?php if (!$hasFees): ?>
+            <div style="background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; padding: 1rem; border-radius: 12px; margin-bottom: 2rem; display: flex; align-items: center; gap: 1rem;">
+                <span style="font-size: 1.5rem;">⚠️</span>
+                <div>
+                    <strong style="display: block;">Fee Structure Missing</strong>
+                    <p style="font-size: 0.85rem; margin: 0;">Students in this workspace currently have no fees assigned. Please configure fees in <a href="settings.php" style="color: #c2410c; font-weight: 700;">Settings</a> to see accurate financial statuses.</p>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <?php if ($message): ?><div style="background: #dcfce7; color: #166534; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-weight: 600;"><?php echo $message; ?></div><?php endif; ?>
         <?php if ($error): ?><div style="background: #fee2e2; color: #991b1b; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-weight: 600;"><?php echo $error; ?></div><?php endif; ?>
 
         <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; align-items: start;">
-            <div>
-                <div class="year-selector" style="background: white; padding: 1rem; border-radius: 12px; display: flex; align-items: center; gap: 1rem; border: 1px solid var(--border-color); margin-bottom: 2rem;">
-                    <span style="font-weight: 600; color: var(--text-muted);">Workplace Filter:</span>
-                    <form method="GET" style="display: flex; gap: 0.5rem; align-items: center;">
-                        <select name="year_id" onchange="this.form.submit()" style="padding: 0.5rem; border-radius: 8px; width: auto; margin-bottom: 0;">
-                            <?php foreach ($years as $y): ?>
-                                <option value="<?php echo $y['id']; ?>" <?php echo $y['id'] == $selectedYearId ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($y['year_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </form>
-                </div>
 
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
                     <h2 style="font-weight: 800; letter-spacing: -1px;">Operational Class Hub</h2>

@@ -89,7 +89,9 @@ $payments = $stmt->fetchAll();
             </div>
             <div style="font-size: 1.5rem; font-weight: 800; padding-top: 1rem; border-top: 2px solid #fff; display: flex; justify-content: space-between; align-items: center;">
                 <span style="font-size: 1rem;">Closing Status:</span>
-                <?php if ($status['balance'] < 0): ?>
+                <?php if ($status['no_fees_set']): ?>
+                    <span style="color: #64748b;">PENDING CONFIGURATION</span>
+                <?php elseif ($status['balance'] < 0): ?>
                     <span style="color: #ef4444;">DUE: <?php echo number_format(abs($status['balance'])); ?> FRW</span>
                 <?php else: ?>
                     <span style="color: #10b981;">CLEARED <?php echo $status['balance'] > 0 ? '(Credit: '.number_format($status['balance']).')' : ''; ?></span>

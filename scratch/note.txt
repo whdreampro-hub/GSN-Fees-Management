@@ -1,0 +1,5 @@
+<?php
+// We'll try to run this via the web server if possible, or just use a more robust CLI check if available.
+// But since I can't easily trigger a web request, I'll try to find where the php binary is.
+// Usually in LAMPP it's at /opt/lampp/bin/php
+?>

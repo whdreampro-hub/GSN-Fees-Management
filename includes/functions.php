@@ -1,14 +1,32 @@
 <?php
 session_start();
 
-function getCurrentYearData($pdo) {
+function getGlobalDefaultYearData($pdo) {
     $stmt = $pdo->prepare("SELECT * FROM academic_years WHERE is_current = 1");
     $stmt->execute();
-    return $stmt->fetch() ?: ['id' => 0, 'year_name' => date('Y')];
+    $data = $stmt->fetch();
+    return $data ?: ['id' => 0, 'year_name' => date('Y')];
+}
+
+function getActiveYearData($pdo) {
+    if (isset($_SESSION['active_academic_year_id'])) {
+        $data = getAcademicYearById($pdo, $_SESSION['active_academic_year_id']);
+        if ($data) return $data;
+    }
+    
+    $current = getGlobalDefaultYearData($pdo);
+    if ($current && isset($current['id'])) {
+        $_SESSION['active_academic_year_id'] = $current['id'];
+    }
+    return $current;
+}
+
+function getCurrentYearData($pdo) {
+    return getActiveYearData($pdo);
 }
 
 function getCurrentYear($pdo) {
-    $data = getCurrentYearData($pdo);
+    $data = getActiveYearData($pdo);
     return $data['year_name'];
 }
 
@@ -101,12 +119,14 @@ function getDetailedYearlyStatus($pdo, $student_id, $academic_year_id) {
     $totalPaid = $stmt->fetchColumn() ?: 0;
     
     $balance = $totalPaid - $totalRequired;
+    $noFeesSet = ($totalRequired == 0);
     
     return [
         'total_required' => $totalRequired,
         'total_paid' => $totalPaid,
         'balance' => $balance,
-        'enrollment' => $enrollment
+        'enrollment' => $enrollment,
+        'no_fees_set' => $noFeesSet
     ];
 }
 ?>

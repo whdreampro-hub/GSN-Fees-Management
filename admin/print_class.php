@@ -29,8 +29,12 @@ $totals = ['required' => 0, 'paid' => 0, 'balance' => 0];
 
 foreach ($allStudents as $s) {
     $status = getDetailedYearlyStatus($pdo, $s['id'], $year_id);
-    if ($filter == 'cleared' && $status['balance'] < 0) continue;
-    if ($filter == 'debtors' && $status['balance'] >= 0) continue;
+    if ($status['no_fees_set']) {
+        if ($filter != 'all') continue; 
+    } else {
+        if ($filter == 'cleared' && $status['balance'] < 0) continue;
+        if ($filter == 'debtors' && $status['balance'] >= 0) continue;
+    }
     
     $s['financials'] = $status;
     $students[] = $s;
@@ -118,7 +122,9 @@ $section = $classData['section'];
                             <?php echo number_format($f['balance']); ?>
                         </td>
                         <td style="text-align: center;">
-                            <?php if ($f['balance'] >= 0): ?>
+                            <?php if ($f['no_fees_set']): ?>
+                                <span class="status-pill" style="background: #f1f5f9; color: #64748b;">NOT SET</span>
+                            <?php elseif ($f['balance'] >= 0): ?>
                                 <span class="status-pill" style="background: #dcfce7; color: #166534;">CLEARED</span>
                             <?php else: ?>
                                 <span class="status-pill" style="background: #fee2e2; color: #991b1b;">DEBTOR</span>

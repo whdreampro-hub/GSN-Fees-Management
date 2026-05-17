@@ -61,9 +61,20 @@ $academicYears = getAllAcademicYears($pdo);
             <div class="logo">GSN <span>Fees Management</span></div>
             <nav class="nav-links">
                 <a href="dashboard.php">Dashboard</a>
-                <a href="manage_classes.php">Manage Classes</a>
+                <a href="manage_classes.php">Classes</a>
                 <a href="logout.php" style="color: var(--danger);">Logout</a>
             </nav>
+            <div class="year-selector" style="margin-left: 1rem;">
+                <form action="switch_year.php" method="POST">
+                    <select name="switch_year_id" onchange="this.form.submit()" style="padding: 0.3rem 0.5rem; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.85rem; font-weight: 700; color: var(--primary-color);">
+                        <?php foreach ($academicYears as $y): ?>
+                            <option value="<?php echo $y['id']; ?>" <?php echo $y['id'] == $selectedYearId ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($y['year_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+            </div>
         </div>
     </header>
 
@@ -128,8 +139,12 @@ $academicYears = getAllAcademicYears($pdo);
                         <div style="display: flex; justify-content: space-between; padding-top: 0.5rem;">
                             <span style="font-weight: 700;">Remaining Balance:</span>
                             <span style="font-weight: 800; font-size: 1.2rem; color: <?php echo $status['balance'] >= 0 ? 'var(--success)' : 'var(--danger)'; ?>">
-                                <?php echo number_format(abs($status['balance'])); ?> FRW
-                                <?php echo $status['balance'] >= 0 ? '<span style="font-size: 0.7rem; display: block; text-align: right;">(Cleared)</span>' : ''; ?>
+                                <?php if ($status['no_fees_set']): ?>
+                                    <span style="color: #64748b;">Pending Config</span>
+                                <?php else: ?>
+                                    <?php echo number_format(abs($status['balance'])); ?> FRW
+                                    <?php echo $status['balance'] >= 0 ? '<span style="font-size: 0.7rem; display: block; text-align: right;">(Cleared)</span>' : ''; ?>
+                                <?php endif; ?>
                             </span>
                         </div>
                     </div>

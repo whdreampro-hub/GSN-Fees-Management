@@ -64,11 +64,21 @@ foreach ($rawStudents as $s) {
     $stats['total_paid'] += $fin['total_paid'];
     if ($s['gender'] == 'Male') $stats['male']++; else $stats['female']++;
     
-    if ($fin['balance'] >= 0) $stats['cleared']++; else $stats['debtors']++;
+    if ($fin['no_fees_set']) {
+        // Optionally add a 'not_set' counter if you want to track them
+    } elseif ($fin['balance'] >= 0) {
+        $stats['cleared']++;
+    } else {
+        $stats['debtors']++;
+    }
 
     // Apply Filter
-    if ($filter == 'cleared' && $fin['balance'] < 0) continue;
-    if ($filter == 'debtors' && $fin['balance'] >= 0) continue;
+    if ($fin['no_fees_set']) {
+        if ($filter != 'all') continue;
+    } else {
+        if ($filter == 'cleared' && $fin['balance'] < 0) continue;
+        if ($filter == 'debtors' && $fin['balance'] >= 0) continue;
+    }
     
     $students[] = $s;
 }
@@ -129,7 +139,7 @@ $percent = $stats['total_required'] > 0 ? round(($stats['total_paid'] / $stats['
                     <h1 style="font-size: 2.5rem; font-weight: 900; letter-spacing: -2px; color: #0f172a;"><?php echo "$className $stream"; ?> <span style="font-weight: 400; color: #94a3b8;">Operational Hub</span></h1>
                 </div>
                 <div style="display: flex; gap: 0.5rem;">
-                    <button onclick="window.print()" class="btn btn-secondary" style="width: auto; background: white; border: 1px solid #e2e8f0;">Print View</button>
+                    <button onclick="window.print()" class="btn btn-secondary" style="width: auto; background: white; border: 1px solid #e2e8f0; color: #0f172a">Print View</button>
                     <a href="add_student.php?mode=bulk&class_id=<?php echo $class_id; ?>&stream=<?php echo urlencode($stream); ?>&year_id=<?php echo $year_id; ?>&section=<?php echo $section; ?>" class="btn btn-secondary" style="width: auto; background: #334155; color: white;">Bulk Enrollment</a>
                     <a href="class_promotion.php?class_id=<?php echo $class_id; ?>&stream=<?php echo urlencode($stream); ?>&year_id=<?php echo $year_id; ?>" class="btn btn-primary" style="width: auto;">Promote All</a>
                 </div>
@@ -210,7 +220,9 @@ $percent = $stats['total_required'] > 0 ? round(($stats['total_paid'] / $stats['
                                 <div style="font-size: 0.7rem; color: #94a3b8;"><?php echo $s['enrollment_status']; ?> Enrollment</div>
                             </td>
                             <td>
-                                <?php if ($f['balance'] >= 0): ?>
+                                <?php if ($f['no_fees_set']): ?>
+                                    <span style="background: #f1f5f9; color: #64748b; padding: 0.35rem 0.75rem; border-radius: 8px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase;">Fees Not Set</span>
+                                <?php elseif ($f['balance'] >= 0): ?>
                                     <span style="background: #dcfce7; color: #166534; padding: 0.35rem 0.75rem; border-radius: 8px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase;">Cleared</span>
                                 <?php elseif ($f['total_paid'] > 0): ?>
                                     <span style="background: #fef9c3; color: #854d0e; padding: 0.35rem 0.75rem; border-radius: 8px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase;">Partial</span>

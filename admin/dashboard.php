@@ -7,10 +7,9 @@ if (!isLoggedIn()) {
 }
 
 $years = getAllAcademicYears($pdo);
-$currentYearData = getCurrentYearData($pdo);
-
-$selectedYearId = isset($_GET['year_id']) ? (int)$_GET['year_id'] : $currentYearData['id'];
-$selectedYear = getAcademicYearById($pdo, $selectedYearId);
+$activeYear = getActiveYearData($pdo);
+$selectedYearId = $activeYear['id'];
+$selectedYear = $activeYear;
 
 if (!$selectedYear) {
     $selectedYear = $currentYearData;
@@ -63,6 +62,11 @@ $query .= " ORDER BY s.full_name ASC";
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $students = $stmt->fetchAll();
+
+// Check if any fees are set for this year
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM fees_structure WHERE academic_year_id = ?");
+$stmt->execute([$selectedYearId]);
+$hasFees = $stmt->fetchColumn() > 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -126,25 +130,31 @@ $students = $stmt->fetchAll();
                 <a href="add_student.php">Register</a>
                 <a href="logout.php" style="color: var(--danger);">Logout</a>
             </nav>
+            <div class="year-selector" style="margin-left: 1rem;">
+                <form action="switch_year.php" method="POST">
+                    <select name="switch_year_id" onchange="this.form.submit()" style="padding: 0.3rem 0.5rem; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.85rem; font-weight: 700; color: var(--primary-color);">
+                        <?php foreach ($years as $y): ?>
+                            <option value="<?php echo $y['id']; ?>" <?php echo $y['id'] == $selectedYearId ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($y['year_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+            </div>
         </div>
     </header>
 
     <main class="container">
-        <div class="year-selector">
-            <span style="font-weight: 600; color: var(--text-muted);">Switch Workspace:</span>
-            <form method="GET" style="display: flex; gap: 0.5rem; align-items: center;">
-                <select name="year_id" onchange="this.form.submit()" style="padding: 0.5rem; border-radius: 8px; width: auto; margin-bottom: 0;">
-                    <?php foreach ($years as $y): ?>
-                        <option value="<?php echo $y['id']; ?>" <?php echo $y['id'] == $selectedYearId ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($y['year_name']); ?> <?php echo $y['is_current'] ? '(Active)' : ''; ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <?php if ($search): ?>
-                    <input type="hidden" name="search" value="<?php echo htmlspecialchars($search); ?>">
-                <?php endif; ?>
-            </form>
-        </div>
+        <?php if (!$hasFees): ?>
+            <div style="background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; padding: 1rem; border-radius: 12px; margin-bottom: 2rem; display: flex; align-items: center; gap: 1rem;">
+                <span style="font-size: 1.5rem;">⚠️</span>
+                <div style="flex: 1;">
+                    <strong style="display: block;">Incomplete Year Configuration</strong>
+                    <p style="font-size: 0.85rem; margin: 0;">No fees have been defined for the <strong><?php echo htmlspecialchars($yearName); ?></strong> workspace. Students will appear with "Fees Not Set" status until you configure the financial structure.</p>
+                </div>
+                <a href="settings.php" class="btn btn-primary" style="width: auto; background: #c2410c; border: none; font-size: 0.8rem; padding: 0.5rem 1rem;">Configure Fees Now</a>
+            </div>
+        <?php endif; ?>
 
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
             <h2>Financial Workspace: <span style="color: var(--primary-color);"><?php echo htmlspecialchars($yearName); ?></span></h2>
@@ -193,7 +203,9 @@ $students = $stmt->fetchAll();
                             </td>
                             <td><span style="background: #eff6ff; color: #1e40af; padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 600; font-size: 0.85rem;"><?php echo $student['class_name'] . ' ' . $student['stream']; ?></span></td>
                             <td>
-                                <?php if ($s_status['balance'] >= 0): ?>
+                                <?php if ($s_status['no_fees_set']): ?>
+                                    <span class="status-pill" style="background: #f1f5f9; color: #64748b;">Fees Not Set</span>
+                                <?php elseif ($s_status['balance'] >= 0): ?>
                                     <span class="status-pill status-paid">Cleared</span>
                                 <?php elseif ($s_status['total_paid'] > 0): ?>
                                     <span class="status-pill status-pending">Partial</span>

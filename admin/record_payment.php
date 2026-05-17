@@ -80,9 +80,20 @@ $academicYears = getAllAcademicYears($pdo);
             <div class="logo">GSN <span>Fees Management</span></div>
             <nav class="nav-links">
                 <a href="dashboard.php">Dashboard</a>
-                <a href="add_student.php">Register Student</a>
+                <a href="add_student.php">Register</a>
                 <a href="logout.php" style="color: var(--danger);">Logout</a>
             </nav>
+            <div class="year-selector" style="margin-left: 1rem;">
+                <form action="switch_year.php" method="POST">
+                    <select name="switch_year_id" onchange="this.form.submit()" style="padding: 0.3rem 0.5rem; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.85rem; font-weight: 700; color: var(--primary-color);">
+                        <?php foreach ($academicYears as $y): ?>
+                            <option value="<?php echo $y['id']; ?>" <?php echo $y['id'] == $currentYearData['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($y['year_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+            </div>
         </div>
     </header>
 

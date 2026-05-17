@@ -12,7 +12,7 @@ $p_class_id = isset($_GET['class_id']) ? (int)$_GET['class_id'] : 0;
 $p_stream = isset($_GET['stream']) ? $_GET['stream'] : '';
 $mode = isset($_GET['mode']) ? $_GET['mode'] : 'single';
 
-$currentYearData = getCurrentYearData($pdo);
+$activeYear = getActiveYearData($pdo);
 $academicYears = getAllAcademicYears($pdo);
 $classes = getClasses($pdo);
 
@@ -109,9 +109,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_register'])) {
             <div class="logo">GSN <span>Fees Management</span></div>
             <nav class="nav-links">
                 <a href="dashboard.php">Dashboard</a>
-                <a href="manage_classes.php">Manage Classes</a>
+                <a href="manage_classes.php">Classes</a>
                 <a href="logout.php" style="color: var(--danger);">Logout</a>
             </nav>
+            <div class="year-selector" style="margin-left: 1rem;">
+                <form action="switch_year.php" method="POST">
+                    <select name="switch_year_id" onchange="this.form.submit()" style="padding: 0.3rem 0.5rem; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 0.85rem; font-weight: 700; color: var(--primary-color);">
+                        <?php foreach ($academicYears as $y): ?>
+                            <option value="<?php echo $y['id']; ?>" <?php echo $y['id'] == $activeYear['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($y['year_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </form>
+            </div>
         </div>
     </header>
 
@@ -133,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_register'])) {
                         <label>Academic Year</label>
                         <select name="academic_year_id" required>
                             <?php foreach ($academicYears as $ay): ?>
-                                <option value="<?php echo $ay['id']; ?>" <?php echo $ay['is_current'] ? 'selected' : ''; ?>>
+                                <option value="<?php echo $ay['id']; ?>" <?php echo $ay['id'] == $activeYear['id'] ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($ay['year_name']); ?>
                                 </option>
                             <?php endforeach; ?>
@@ -188,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_register'])) {
                         <label>Target Academic Year</label>
                         <select name="academic_year_id" required>
                             <?php foreach ($academicYears as $ay): ?>
-                                <option value="<?php echo $ay['id']; ?>" <?php echo $ay['is_current'] ? 'selected' : ''; ?>>
+                                <option value="<?php echo $ay['id']; ?>" <?php echo $ay['id'] == $activeYear['id'] ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($ay['year_name']); ?>
                                 </option>
                             <?php endforeach; ?>
