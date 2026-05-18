@@ -19,6 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['lookup'])) {
             $results['student_name'] = $student['full_name'];
             $results['reg_number'] = $reg_number;
             $results['year_id'] = $year_id;
+            $results['student_id'] = $student['id'];
             
             // Get current year name
             $stmt = $pdo->prepare("SELECT year_name FROM academic_years WHERE id = ?");
@@ -159,6 +160,41 @@ $academicYears = getAllAcademicYears($pdo);
                     </div>
                 </div>
             </div>
+
+            <?php
+            // Fetch student requests
+            $stmt = $pdo->prepare("SELECT * FROM student_requests WHERE student_id = ? AND academic_year_id = ? ORDER BY created_at DESC");
+            $stmt->execute([$results['student_id'], $results['year_id']]);
+            $student_requests = $stmt->fetchAll();
+            ?>
+            
+            <?php if (!empty($student_requests)): ?>
+            <div style="margin-top: 2rem;">
+                <h3 class="mb-4">Your Request History</h3>
+                <?php foreach ($student_requests as $req): ?>
+                    <div class="financial-card" style="margin-bottom: 1rem; padding: 1.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                            <span style="background: #eff6ff; color: #1e40af; padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 700; font-size: 0.75rem;"><?php echo htmlspecialchars($req['request_type']); ?></span>
+                            <span style="font-size: 0.8rem; color: var(--text-muted);"><?php echo date('M d, Y H:i', strtotime($req['created_at'])); ?></span>
+                        </div>
+                        <p style="color: var(--text-main); margin-bottom: 1rem;"><?php echo nl2br(htmlspecialchars($req['message'])); ?></p>
+                        
+                        <?php if ($req['admin_reply']): ?>
+                            <div style="background: #f0fdf4; border-left: 4px solid var(--success); padding: 1rem; border-radius: 8px;">
+                                <span style="font-weight: 700; font-size: 0.8rem; color: #166534; text-transform: uppercase;">Admin Reply (<?php echo $req['status']; ?>):</span>
+                                <p style="margin-top: 0.5rem; color: #166534; font-size: 0.95rem;">
+                                    <?php echo nl2br(htmlspecialchars($req['admin_reply'])); ?>
+                                </p>
+                            </div>
+                        <?php else: ?>
+                            <div style="font-size: 0.85rem; color: #64748b; font-style: italic;">
+                                Status: <?php echo $req['status']; ?>. Awaiting admin reply...
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
 
             <a href="portal.php" style="display: block; text-align: center; margin-top: 2rem; color: var(--text-muted); text-decoration: none;">&larr; Check another record</a>
         <?php endif; ?>

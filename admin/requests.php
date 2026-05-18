@@ -12,6 +12,16 @@ if (isset($_GET['review_id'])) {
     $stmt->execute([(int)$_GET['review_id']]);
 }
 
+// Handle reply submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_reply'])) {
+    $req_id = (int)$_POST['request_id'];
+    $reply = trim($_POST['admin_reply']);
+    if ($reply) {
+        $stmt = $pdo->prepare("UPDATE student_requests SET status = 'Resolved', admin_reply = ? WHERE id = ?");
+        $stmt->execute([$reply, $req_id]);
+    }
+}
+
 $stmt = $pdo->query("SELECT r.*, s.full_name, s.reg_number, ay.year_name 
                     FROM student_requests r 
                     JOIN students s ON r.student_id = s.id 
@@ -72,7 +82,7 @@ $requests = $stmt->fetchAll();
                     <?php if ($r['status'] == 'Pending'): ?>
                         <a href="?review_id=<?php echo $r['id']; ?>" class="btn btn-sm" style="background: var(--success); color: white;">Mark as Reviewed</a>
                     <?php else: ?>
-                        <span class="status-badge status-paid">Reviewed</span>
+                        <span class="status-badge status-paid"><?php echo $r['status']; ?></span>
                     <?php endif; ?>
                 </div>
                 
@@ -89,6 +99,21 @@ $requests = $stmt->fetchAll();
                         "<?php echo nl2br(htmlspecialchars($r['message'])); ?>"
                     </p>
                 </div>
+                
+                <?php if ($r['admin_reply']): ?>
+                    <div style="margin-top: 1rem; background: #f0fdf4; border-left: 4px solid var(--success); padding: 1rem; border-radius: 8px;">
+                        <span style="font-weight: 700; font-size: 0.8rem; color: #166534; text-transform: uppercase;">Admin Reply:</span>
+                        <p style="margin-top: 0.5rem; color: #166534; font-size: 0.95rem;">
+                            <?php echo nl2br(htmlspecialchars($r['admin_reply'])); ?>
+                        </p>
+                    </div>
+                <?php else: ?>
+                    <form method="POST" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                        <input type="hidden" name="request_id" value="<?php echo $r['id']; ?>">
+                        <input type="text" name="admin_reply" placeholder="Type your reply here..." required style="flex: 1; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <button type="submit" name="submit_reply" class="btn btn-primary" style="width: auto;">Reply</button>
+                    </form>
+                <?php endif; ?>
                 
                 <div style="margin-top: 1.5rem;">
                     <a href="view_student.php?id=<?php echo $r['student_id']; ?>&year_id=<?php echo $r['academic_year_id']; ?>" style="color: var(--primary-color); font-weight: 600; text-decoration: none; font-size: 0.9rem;">View Student Financial Profile &rarr;</a>
