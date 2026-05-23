@@ -79,6 +79,41 @@ $academicYears = getAllAcademicYears($pdo);
             background: var(--primary-color);
             color: white;
         }
+        .momo-btn {
+            display: inline-block;
+            margin-top: 1.5rem;
+            margin-right: 1rem;
+            color: white;
+            background: #25D366;
+            text-decoration: none;
+            font-weight: 600;
+            border: 2px solid #25D366;
+            padding: 0.6rem 1.2rem;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .momo-btn:hover {
+            background: #128C7E;
+            border-color: #128C7E;
+        }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal {
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
@@ -155,6 +190,7 @@ $academicYears = getAllAcademicYears($pdo);
                         </p>
                     </div>
                     <div style="text-align: right;">
+                        <button onclick="openMomoModal()" class="momo-btn">Pay via MoMo</button>
                         <a href="submit_request.php?reg=<?php echo $results['reg_number']; ?>&year=<?php echo $results['year_id']; ?>" class="req-btn">Submit Assistance Request</a>
                         <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">Request clearance extension or dispute</p>
                     </div>
@@ -199,5 +235,126 @@ $academicYears = getAllAcademicYears($pdo);
             <a href="portal.php" style="display: block; text-align: center; margin-top: 2rem; color: var(--text-muted); text-decoration: none;">&larr; Check another record</a>
         <?php endif; ?>
     </main>
+
+    <?php if ($results): ?>
+    <div class="modal-overlay" id="momoModal">
+        <div class="modal">
+            <h3 style="margin-bottom: 1.5rem;">Pay via Mobile Money</h3>
+            <div id="momoStep1">
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
+                    <p style="font-size: 0.85rem; color: #166534; margin-bottom: 0.3rem;">Receiving School Account</p>
+                    <p style="font-weight: 800; color: #15803d; font-size: 1.2rem; letter-spacing: 1px;">0794068520</p>
+                    <p style="font-size: 0.75rem; color: #166534; margin-top: 0.3rem;">(GSN Official Payment Line)</p>
+                </div>
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="text" id="momoPhone" placeholder="07XXXXXXXX" required>
+                </div>
+                <div class="form-group">
+                    <label>Target Term</label>
+                    <select id="momoTerm" required>
+                        <option value="1">Term 1</option>
+                        <option value="2">Term 2</option>
+                        <option value="3">Term 3</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Amount (FRW)</label>
+                    <input type="number" id="momoAmount" required placeholder="Enter amount">
+                </div>
+                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                    <button type="button" class="btn" onclick="closeMomoModal()" style="background: #e2e8f0; color: #475569; width: 100%;">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="initiatePayment()" style="width: 100%;">Pay</button>
+                </div>
+            </div>
+            <div id="momoStep2" style="display: none; text-align: center;">
+                <p style="font-weight: 600; margin-bottom: 1rem;">Payment Initiated</p>
+                <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">Transferring funds to <strong>0794068520</strong> (GSN)</p>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">Please check your phone (<span id="displayPhone"></span>) and enter your PIN to authorize the transaction.</p>
+                <div style="margin-top: 1.5rem;">
+                    <div style="border: 4px solid #f3f3f3; border-top: 4px solid var(--primary-color); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+                </div>
+            </div>
+            <div id="momoStep3" style="display: none; text-align: center;">
+                <p style="color: var(--success); font-weight: 700; font-size: 1.2rem; margin-bottom: 1rem;">Payment Processed</p>
+                <p style="color: var(--text-muted); font-size: 0.9rem;" id="momoMessage"></p>
+                <button type="button" class="btn btn-primary" style="margin-top: 1.5rem; width: 100%;" onclick="window.location.reload()">Done</button>
+            </div>
+        </div>
+    </div>
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    <script>
+        function openMomoModal() {
+            document.getElementById('momoModal').style.display = 'flex';
+            document.getElementById('momoStep1').style.display = 'block';
+            document.getElementById('momoStep2').style.display = 'none';
+            document.getElementById('momoStep3').style.display = 'none';
+        }
+
+        function closeMomoModal() {
+            document.getElementById('momoModal').style.display = 'none';
+        }
+
+        function initiatePayment() {
+            const phone = document.getElementById('momoPhone').value;
+            const term = document.getElementById('momoTerm').value;
+            const amount = document.getElementById('momoAmount').value;
+
+            if (!phone || !term || !amount) {
+                alert("Please fill all fields");
+                return;
+            }
+
+            document.getElementById('momoStep1').style.display = 'none';
+            document.getElementById('displayPhone').innerText = phone;
+            document.getElementById('momoStep2').style.display = 'block';
+
+            // Simulate MoMo prompt delay
+            setTimeout(() => {
+                const formData = new FormData();
+                formData.append('student_id', <?php echo $results['student_id']; ?>);
+                formData.append('academic_year_id', <?php echo $results['year_id']; ?>);
+                formData.append('term', term);
+                formData.append('amount', amount);
+                formData.append('phone', phone);
+
+                fetch('process_momo_payment.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('momoStep2').style.display = 'none';
+                    document.getElementById('momoStep3').style.display = 'block';
+                    
+                    if (data.success) {
+                        if (data.redirect) {
+                            document.getElementById('momoMessage').innerHTML = data.message + '<br><a href="'+data.redirect+'" target="_blank" style="display:inline-block; margin-top:15px; padding:10px 20px; background:var(--primary-color); color:white; text-decoration:none; border-radius:8px; font-weight:bold;">Authorize Payment</a><p style="font-size:0.8rem; margin-top:10px;">(This is because you are using Test Keys)</p>';
+                            document.getElementById('momoMessage').style.color = 'var(--text-main)';
+                        } else {
+                            document.getElementById('momoMessage').innerText = data.message;
+                            document.getElementById('momoMessage').style.color = 'var(--success)';
+                        }
+                    } else {
+                        document.getElementById('momoMessage').innerText = data.message || 'Payment failed.';
+                        document.getElementById('momoMessage').style.color = 'var(--danger)';
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('momoStep2').style.display = 'none';
+                    document.getElementById('momoStep3').style.display = 'block';
+                    document.getElementById('momoMessage').innerText = 'An error occurred during payment processing.';
+                    document.getElementById('momoMessage').style.color = 'var(--danger)';
+                });
+            }, 3000); // 3 seconds simulation
+        }
+    </script>
+    <?php endif; ?>
+
 </body>
 </html>
