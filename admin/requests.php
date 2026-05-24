@@ -12,13 +12,26 @@ if (isset($_GET['review_id'])) {
     $stmt->execute([(int)$_GET['review_id']]);
 }
 
-// Handle reply submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_reply'])) {
-    $req_id = (int)$_POST['request_id'];
-    $reply = trim($_POST['admin_reply']);
-    if ($reply) {
-        $stmt = $pdo->prepare("UPDATE student_requests SET status = 'Resolved', admin_reply = ? WHERE id = ?");
-        $stmt->execute([$reply, $req_id]);
+// Handle reply submission and editing/deleting
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['submit_reply'])) {
+        $req_id = (int)$_POST['request_id'];
+        $reply = trim($_POST['admin_reply']);
+        if ($reply) {
+            $stmt = $pdo->prepare("UPDATE student_requests SET status = 'Resolved', admin_reply = ? WHERE id = ?");
+            $stmt->execute([$reply, $req_id]);
+        }
+    } elseif (isset($_POST['edit_reply'])) {
+        $req_id = (int)$_POST['request_id'];
+        $reply = trim($_POST['admin_reply']);
+        if ($reply) {
+            $stmt = $pdo->prepare("UPDATE student_requests SET admin_reply = ? WHERE id = ?");
+            $stmt->execute([$reply, $req_id]);
+        }
+    } elseif (isset($_POST['delete_reply'])) {
+        $req_id = (int)$_POST['request_id'];
+        $stmt = $pdo->prepare("UPDATE student_requests SET status = 'Reviewed', admin_reply = NULL WHERE id = ?");
+        $stmt->execute([$req_id]);
     }
 }
 
@@ -101,12 +114,28 @@ $requests = $stmt->fetchAll();
                 </div>
                 
                 <?php if ($r['admin_reply']): ?>
-                    <div style="margin-top: 1rem; background: #f0fdf4; border-left: 4px solid var(--success); padding: 1rem; border-radius: 8px;">
-                        <span style="font-weight: 700; font-size: 0.8rem; color: #166534; text-transform: uppercase;">Admin Reply:</span>
+                    <div id="reply_display_<?php echo $r['id']; ?>" style="margin-top: 1rem; background: #f0fdf4; border-left: 4px solid var(--success); padding: 1rem; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <span style="font-weight: 700; font-size: 0.8rem; color: #166534; text-transform: uppercase;">Admin Reply:</span>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button type="button" onclick="document.getElementById('reply_edit_<?php echo $r['id']; ?>').style.display='flex'; document.getElementById('reply_display_<?php echo $r['id']; ?>').style.display='none';" class="btn" style="padding: 0.2rem 0.6rem; font-size: 0.75rem; background: #bbf7d0; color: #166534; border: 1px solid #86efac;">Edit</button>
+                                <form method="POST" onsubmit="return confirm('Delete this reply?');" style="margin: 0;">
+                                    <input type="hidden" name="request_id" value="<?php echo $r['id']; ?>">
+                                    <button type="submit" name="delete_reply" class="btn" style="padding: 0.2rem 0.6rem; font-size: 0.75rem; background: #fecaca; color: #991b1b; border: 1px solid #fca5a5;">Delete</button>
+                                </form>
+                            </div>
+                        </div>
                         <p style="margin-top: 0.5rem; color: #166534; font-size: 0.95rem;">
                             <?php echo nl2br(htmlspecialchars($r['admin_reply'])); ?>
                         </p>
                     </div>
+                    
+                    <form method="POST" id="reply_edit_<?php echo $r['id']; ?>" style="display: none; margin-top: 1rem; gap: 0.5rem;">
+                        <input type="hidden" name="request_id" value="<?php echo $r['id']; ?>">
+                        <input type="text" name="admin_reply" value="<?php echo htmlspecialchars($r['admin_reply']); ?>" required style="flex: 1; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border-color);">
+                        <button type="submit" name="edit_reply" class="btn btn-primary" style="width: auto;">Save</button>
+                        <button type="button" onclick="document.getElementById('reply_edit_<?php echo $r['id']; ?>').style.display='none'; document.getElementById('reply_display_<?php echo $r['id']; ?>').style.display='block';" class="btn" style="background: #e2e8f0; color: #475569; width: auto;">Cancel</button>
+                    </form>
                 <?php else: ?>
                     <form method="POST" style="margin-top: 1rem; display: flex; gap: 0.5rem;">
                         <input type="hidden" name="request_id" value="<?php echo $r['id']; ?>">
