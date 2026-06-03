@@ -1,4 +1,4 @@
-# GSN Fees Management System
+ GSN Fees Management System
 
 A professional, robust, and efficient School Fees Management System built for **GS Nyagisozi**. This system is designed to handle student registrations, term-based fee tracking, academic journey logging, and multi-year financial reporting with a premium user interface.
 
