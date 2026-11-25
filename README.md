@@ -25,7 +25,7 @@ A professional, robust, and efficient School Fees Management System built for **
 
 1. **Clone the Repository**:
    ```bash
-   git clone https://github.com/your-username/gsn-countable-management.git
+   git clone https://github.com/whdreampro-hub/GSN-Fees-Management.git
    ```
 
 2. **Move to Web Directory**:
@@ -40,7 +40,7 @@ A professional, robust, and efficient School Fees Management System built for **
    - Check `includes/db_connect.php` to ensure the database credentials match your local setup.
 
 5. **Run**:
-   Open your browser and go to `http://localhost/gsn-countable-management/`.
+   Open your browser and go to `http://localhost/GSN-Fees-Management/`.
 
 ## 📖 How to Use
 
