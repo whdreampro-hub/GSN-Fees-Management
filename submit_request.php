@@ -2,8 +2,10 @@
 require_once 'includes/db_connect.php';
 require_once 'includes/functions.php';
 
-$reg = isset($_GET['reg']) ? $_GET['reg'] : '';
-$year_id = isset($_GET['year']) ? (int)$_GET['year'] : 0;
+$reg = isset($_GET['reg']) && is_string($_GET['reg']) ? trim($_GET['reg']) : '';
+$reg_display = htmlspecialchars($reg, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+$year_id = isset($_GET['year']) ? filter_var($_GET['year'], FILTER_VALIDATE_INT) : 0;
+$year_id = $year_id !== false ? (int) $year_id : 0;
 
 $student_id = 0;
 $student_name = '';
@@ -22,15 +24,19 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $req_type = $_POST['type'];
-    $req_message = trim($_POST['message']);
+    $req_type = isset($_POST['type']) && is_string($_POST['type']) ? trim($_POST['type']) : '';
+    $req_message = isset($_POST['message']) && is_string($_POST['message']) ? trim($_POST['message']) : '';
+    $allowedTypes = ['Financial Difficulty', 'Payment Dispute', 'Clearance Inquiry', 'Special Explanation'];
     
-    if ($student_id && $year_id && $req_type && $req_message) {
+    if ($student_id && $year_id > 0 && in_array($req_type, $allowedTypes, true) && $req_message !== '' && strlen($req_message) <= 2000) {
         try {
             $stmt = $pdo->prepare("INSERT INTO student_requests (student_id, academic_year_id, request_type, message) VALUES (?, ?, ?, ?)");
             $stmt->execute([$student_id, $year_id, $req_type, $req_message]);
             $message = "Your request has been submitted to administration. Thank you.";
-        } catch (PDOException $e) { $error = "Submission failed: " . $e->getMessage(); }
+        } catch (PDOException $e) {
+            error_log('Student request submission failed: ' . $e->getMessage());
+            $error = 'Submission failed. Please try again later.';
+        }
     } else {
         $error = "Please fill in all fields.";
     }
@@ -57,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <main class="container">
         <div class="card" style="margin: 0 auto; max-width: 600px;">
             <h2 class="mb-2">Administrative Request</h2>
-            <p class="mb-4" style="color: var(--text-muted);">Submitting request for: <strong><?php echo htmlspecialchars($student_name); ?></strong> (<?php echo $reg; ?>)</p>
+            <p class="mb-4" style="color: var(--text-muted);">Submitting request for: <strong><?php echo htmlspecialchars($student_name); ?></strong> (<?php echo $reg_display; ?>)</p>
 
             <?php if ($message): ?>
                 <div style="background: #dcfce7; color: #166534; padding: 1.5rem; border-radius: 12px; text-align: center;">
